@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Blind Bingo</title>
+<style>
+    body { font-family: Arial; padding: 20px; }
+    h1 { text-align: center; }
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(8, 80px);
+        grid-gap: 10px;
+        justify-content: center;
+        margin-top: 30px;
+    }
+    .cell {
+        width: 80px;
+        height: 80px;
+        background: #eee;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .revealed {
+        background: #d1ffd1;
+        cursor: default;
+    }
+</style>
+</head>
+<body>
+
+<h1>Blind Bingo</h1>
+<p style="text-align:center;">Klicka på valfri ruta för att avslöja dina tickets!</p>
+
+<div class="grid" id="grid"></div>
+
+<script>
+// Skapa en lista med 40 nollor
+let values = new Array(40).fill(0);
+
+// Lägg till totalt 25 tickets
+let ticketsLeft = 25;
+
+while (ticketsLeft > 0) {
+    // Slumpa en ruta
+    let index = Math.floor(Math.random() * 40);
+
+    // Slumpa hur många tickets vi lägger (max 4, eller min av 4 och ticketsLeft)
+    let add = Math.min(4, Math.floor(Math.random() * 4) + 1);
+
+    // Men lägg inte mer än vad som finns kvar totalt
+    add = Math.min(add, ticketsLeft);
+
+    values[index] += add;
+    ticketsLeft -= add;
+}
+
+// blanda ordningen så att tickets inte klumpar ihop
+values = values.sort(() => Math.random() - 0.5);
+
+// skapa rutnätet
+const grid = document.getElementById("grid");
+
+values.forEach((val, idx) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.textContent = ""; // dold
+
+    cell.addEventListener("click", () => {
+        if (!cell.classList.contains("revealed")) {
+            cell.classList.add("revealed");
+            cell.textContent = val === 0 ? "Nit" : val + "🎟️";
+        }
+    });
+
+    grid.appendChild(cell);
+});
+</script>
+
+</body>
+</html>

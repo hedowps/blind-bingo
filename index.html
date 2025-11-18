@@ -1,84 +1,302 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-<meta charset="UTF-8">
-<title>Blind Bingo</title>
-<style>
-    body { font-family: Arial; padding: 20px; }
+  <meta charset="UTF-8">
+  <title>Blind Bingo</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
     h1 { text-align: center; }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
     .grid {
-        display: grid;
-        grid-template-columns: repeat(8, 80px);
-        grid-gap: 10px;
-        justify-content: center;
-        margin-top: 30px;
+      display: grid;
+      grid-template-columns: repeat(8, 80px);
+      grid-gap: 8px;
+      justify-content: center;
+      margin: 20px 0;
     }
     .cell {
-        width: 80px;
-        height: 80px;
-        background: #eee;
-        border-radius: 6px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-        cursor: pointer;
-        user-select: none;
+      width: 80px;
+      height: 80px;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      user-select: none;
+      background: #f0f0f0;
+      text-align: center;
+      padding: 4px;
+      box-shadow: 0 0 2px rgba(0,0,0,0.2);
     }
-    .revealed {
-        background: #d1ffd1;
-        cursor: default;
+    .cell.disabled {
+      cursor: default;
+      opacity: 0.8;
     }
-</style>
+    .cell.win {
+      background: #d1ffd1;
+      border: 2px solid #4caf50;
+    }
+    .cell.lose {
+      background: #ffd1d1;
+      border: 2px solid #f44336;
+    }
+    .name-input {
+      padding: 6px;
+      font-size: 14px;
+      min-width: 200px;
+    }
+    button {
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .admin-section {
+      margin-top: 30px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+      text-align: left;
+    }
+    th {
+      background: #f5f5f5;
+    }
+    .small {
+      font-size: 11px;
+      color: #555;
+    }
+  </style>
 </head>
 <body>
 
 <h1>Blind Bingo</h1>
-<p style="text-align:center;">Klicka på valfri ruta för att avslöja dina tickets!</p>
 
-<div class="grid" id="grid"></div>
+<div class="top-bar">
+  <div>
+    <label>Ditt namn:
+      <input class="name-input" id="playerName" placeholder="Skriv ditt namn">
+    </label>
+  </div>
+  <div>
+    <button onclick="saveName()">Spara namn</button>
+    <button onclick="refreshAll()">Uppdatera</button>
+    <button onclick="newGame()">Nytt spel (admin)</button>
+  </div>
+</div>
+
+<p class="small">
+  Skriv in ditt namn först. När du klickar på en ruta sparas dina initialer i rutan
+  och alla som har sidan öppen ser resultatet.
+</p>
+
+<div id="grid" class="grid"></div>
+
+<div class="admin-section">
+  <h2>Adminpanel – logg</h2>
+  <p class="small">Alla som har länken kan se loggen.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Tid</th>
+        <th>Namn</th>
+        <th>Cellindex</th>
+        <th>Tickets</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+</div>
 
 <script>
-// Skapa en lista med 40 nollor
-let values = new Array(40).fill(0);
+  const API_URL = https://script.google.com/macros/library/d/12uOuaeg8LZ6Y4WtmVbrZe6cbFpmlSw56lNRkzZYkecEiKTjqaEmejB8w/3; 
+  // ================================================
 
-// Lägg till totalt 25 tickets
-let ticketsLeft = 25;
+  let boardData = null;
 
-while (ticketsLeft > 0) {
-    // Slumpa en ruta
-    let index = Math.floor(Math.random() * 40);
+  function getInitials(name) {
+    if (!name) return "";
+    return name.trim().split(/\s+/).map(p => p[0].toUpperCase()).join("");
+  }
 
-    // Slumpa hur många tickets vi lägger (max 4, eller min av 4 och ticketsLeft)
-    let add = Math.min(4, Math.floor(Math.random() * 4) + 1);
+  function saveName() {
+    const name = document.getElementById("playerName").value.trim();
+    if (!name) {
+      alert("Skriv in ett namn först.");
+      return;
+    }
+    localStorage.setItem("bingoName", name);
+    alert("Namn sparat!");
+  }
 
-    // Men lägg inte mer än vad som finns kvar totalt
-    add = Math.min(add, ticketsLeft);
+  function loadName() {
+    const stored = localStorage.getItem("bingoName");
+    if (stored) document.getElementById("playerName").value = stored;
+  }
 
-    values[index] += add;
-    ticketsLeft -= add;
-}
+  async function apiGet(action) {
+    const res = await fetch(API_URL + "?action=" + encodeURIComponent(action));
+    return res.json();
+  }
 
-// blanda ordningen så att tickets inte klumpar ihop
-values = values.sort(() => Math.random() - 0.5);
-
-// skapa rutnätet
-const grid = document.getElementById("grid");
-
-values.forEach((val, idx) => {
-    const cell = document.createElement("div");
-    cell.className = "cell";
-    cell.textContent = ""; // dold
-
-    cell.addEventListener("click", () => {
-        if (!cell.classList.contains("revealed")) {
-            cell.classList.add("revealed");
-            cell.textContent = val === 0 ? "Nit" : val + "🎟️";
-        }
+  async function apiPost(action, data) {
+    const res = await fetch(API_URL + "?action=" + encodeURIComponent(action), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data || {})
     });
+    return res.json();
+  }
 
-    grid.appendChild(cell);
-});
+  function buildGrid() {
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+
+    if (!boardData || !boardData.cells || boardData.cells.length === 0) {
+      grid.innerHTML = "<p>Inget spel ännu. Klicka på 'Nytt spel (admin)'.</p>";
+      return;
+    }
+
+    boardData.cells.forEach(cell => {
+      const div = document.createElement("div");
+      div.className = "cell";
+      div.dataset.index = cell.index;
+
+      let contentTop = "";
+      let contentBottom = "";
+
+      if (cell.clickedBy) {
+        const initials = getInitials(cell.clickedBy);
+        contentTop = initials;
+        if (cell.tickets && cell.tickets > 0) {
+          contentBottom = cell.tickets + " 🎟️";
+          div.classList.add("win", "disabled");
+        } else {
+          contentBottom = "Nit";
+          div.classList.add("lose", "disabled");
+        }
+      } else {
+        contentTop = "?";
+      }
+
+      div.innerHTML = `
+        <div>${contentTop}</div>
+        <div>${contentBottom}</div>
+      `;
+
+      if (!cell.clickedBy) {
+        div.addEventListener("click", onCellClick);
+      }
+
+      grid.appendChild(div);
+    });
+  }
+
+  async function onCellClick(e) {
+    const name = document.getElementById("playerName").value.trim();
+    if (!name) {
+      alert("Skriv in ditt namn och klicka på 'Spara namn' först.");
+      return;
+    }
+    const index = Number(e.currentTarget.dataset.index);
+
+    try {
+      const result = await apiPost("clickCell", { index, name });
+      if (result.error) {
+        alert("Fel: " + result.error);
+        return;
+      }
+      if (result.alreadyClicked) {
+        alert("Den här rutan har redan tagits av: " + result.clickedBy);
+      } else {
+        if (result.tickets > 0) {
+          alert(`Grattis ${name}! Du fick ${result.tickets} ticket(s).`);
+        } else {
+          alert(`Tyvärr ${name}, det blev nitlott.`);
+        }
+      }
+      refreshAll();
+    } catch (err) {
+      alert("Tekniskt fel vid klick.");
+      console.error(err);
+    }
+  }
+
+  function buildLog(logs) {
+    const body = document.getElementById("logBody");
+    body.innerHTML = "";
+    logs.forEach(entry => {
+      const tr = document.createElement("tr");
+      const time = entry.time ? new Date(entry.time).toLocaleString() : "";
+      tr.innerHTML = `
+        <td>${time}</td>
+        <td>${entry.name}</td>
+        <td>${entry.index}</td>
+        <td>${entry.tickets}</td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  async function refreshAll() {
+    try {
+      const [board, logs] = await Promise.all([
+        apiGet("getBoard"),
+        apiGet("getLog")
+      ]);
+      if (!board.error) {
+        boardData = board;
+        buildGrid();
+      }
+      if (!logs.error) {
+        buildLog(logs);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function newGame() {
+    const name = document.getElementById("playerName").value.trim();
+    // superenkel "admin-säkring" – byt ut mot ditt namn om du vill:
+    if (name !== "Hedvig Oppitz") {
+      if (!confirm("Du heter inte Hedvig, är du SÄKER på att du ska starta nytt spel?")) {
+        return;
+      }
+    }
+    if (!confirm("Starta nytt spel? Detta rensar brädet och loggen.")) return;
+
+    try {
+      const res = await apiGet("newGame");
+      if (res.error) {
+        alert("Fel vid nytt spel: " + res.error);
+      } else {
+        refreshAll();
+      }
+    } catch (err) {
+      alert("Tekniskt fel vid nytt spel.");
+      console.error(err);
+    }
+  }
+
+  window.onload = function() {
+    loadName();
+    refreshAll();
+    setInterval(refreshAll, 15000); // uppdatera var 15:e sekund
+  };
 </script>
 
 </body>
